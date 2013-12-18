@@ -1,11 +1,13 @@
-# giflib
-giflib ffi binding
+---
+project: giflib
+tabline: giflib Lua+ffi binding
+---
 
-v1.0 | [binding](http://code.google.com/p/lua-files/source/browse/giflib.lua) | [header](http://code.google.com/p/lua-files/source/browse/giflib_h.lua) | [demo](http://code.google.com/p/lua-files/source/browse/giflib_demo.lua) | giflib 5.0 | LuaJIT 2
+v1.0 | giflib 5.0 | LuaJIT 2
 
 ## `local giflib = require'giflib'`
 
-Lightweight ffi binding of the antique [GIFLIB](http://sourceforge.net/projects/giflib/).
+Lightweight ffi binding of the antique [GIFLIB].
 
 ## `giflib.load(t) -> gif`
 
@@ -30,4 +32,6 @@ The returned `gif` object is a table with the fields:
 		but this feature is almost never used).
 
 ----
-See also: [imagefile].
+See also: [imagefile](imagefile.html)
+
+[GIFLIB]: http://sourceforge.net/projects/giflib/
