@@ -1,6 +1,6 @@
 ---
 project: giflib
-tabline: giflib Lua+ffi binding
+tagline: giflib ffi binding
 ---
 
 v1.0 | giflib 5.0 | LuaJIT 2
