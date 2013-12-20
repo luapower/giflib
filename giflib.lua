@@ -1,7 +1,7 @@
 local ffi = require'ffi'
 local glue = require'glue'
 require'giflib_h'
-local C = ffi.load'giflib5'
+local C = ffi.load'gif'
 
 local function ptr(p) --convert NULL to nil
 	return p ~= nil and p or nil
