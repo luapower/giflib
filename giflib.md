@@ -7,7 +7,7 @@ v1.0 | giflib 5.0 | LuaJIT 2
 
 ## `local giflib = require'giflib'`
 
-Lightweight ffi binding of the antique [GIFLIB].
+Lightweight ffi binding of the antique [GIFLIB][giflib lib].
 
 ## `giflib.load(t) -> gif`
 
@@ -34,4 +34,4 @@ The returned `gif` object is a table with the fields:
 ----
 See also: [imagefile](imagefile.html)
 
-[GIFLIB]: http://sourceforge.net/projects/giflib/
+[giflib lib]: http://sourceforge.net/projects/giflib/
