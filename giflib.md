@@ -4,8 +4,6 @@ tagline:     giflib ffi binding
 category:    Raster Images
 ---
 
-v1.0 | giflib 5.0 | LuaJIT 2
-
 ## `local giflib = require'giflib'`
 
 Lightweight ffi binding of the antique [GIFLIB][giflib lib].
