@@ -62,9 +62,12 @@ end
 
 local function load(t)
 	return glue.fcall(function(finally)
+		local opaque = type(t) == 'table' and t.opaque
 		--open source
 		local ft
-		if t.string then
+		if type(t) == 'string' or t.path then
+			ft = open(open_filename, t.path)
+		elseif t.string then
 			local cb = ffi.cast('GifInputFunc', string_reader(t.string))
 			finally(function() cb:free() end)
 			ft = open(open_callback, cb)
@@ -72,8 +75,6 @@ local function load(t)
 			local cb = ffi.cast('GifInputFunc', cdata_reader(t.cdata, t.size))
 			finally(function() cb:free() end)
 			ft = open(open_callback, cb)
-		elseif t.path then
-			ft = open(open_filename, t.path)
 		elseif t.fileno then
 			ft = open(open_fileno, t.fileno)
 		else
@@ -108,7 +109,7 @@ local function load(t)
 			local data = ffi.new('uint8_t[?]', size)
 			local di = 0
 			local assert = assert
-			local transparent = not t.opaque
+			local transparent = not opaque
 			for i=0, w * h-1 do
 				local idx = si.RasterBits[i]
 				assert(idx < colormap.ColorCount)
