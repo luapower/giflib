@@ -1,1 +1,1 @@
-gcc *.c -O3 -s -o ../../bin/linux32/libgif.so -I. -shared
+gcc $CFLAGS *.c -shared -o ../../bin/linux32/libgif.so -I.
