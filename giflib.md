@@ -1,7 +1,6 @@
 ---
 project:     giflib
 tagline:     giflib ffi binding
-category:    Raster Images
 ---
 
 ## `local giflib = require'giflib'`
