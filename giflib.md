@@ -1,6 +1,6 @@
 ---
-project:     giflib
-tagline:     giflib ffi binding
+project: giflib
+tagline: GIF reader
 ---
 
 ## `local giflib = require'giflib'`
