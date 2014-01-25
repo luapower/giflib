@@ -1,0 +1,14 @@
+*
+!/bin/
+!/csrc/
+!/bin/mingw32/
+!/bin/linux32/
+!/media/
+
+!/giflib*
+!/bin/mingw32/gif*
+!/bin/linux32/libgif*
+!/csrc/giflib/
+!/csrc/giflib/**
+!/media/gif/
+!/media/gif/**
