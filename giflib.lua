@@ -1,3 +1,7 @@
+
+--giflib ffi binding.
+--Written by Cosmin Apreutesei. Public Domain.
+
 local ffi = require'ffi'
 local glue = require'glue'
 require'giflib_h'
