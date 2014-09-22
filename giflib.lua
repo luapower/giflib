@@ -70,7 +70,7 @@ local function load(t)
 		--open source
 		local ft
 		if type(t) == 'string' or t.path then
-			ft = open(open_filename, t.path)
+			ft = open(open_filename, t.path or t)
 		elseif t.string then
 			local cb = ffi.cast('GifInputFunc', string_reader(t.string))
 			finally(function() cb:free() end)
