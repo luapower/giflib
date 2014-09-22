@@ -123,9 +123,9 @@ local function load(t)
 					data[di+2] = 0
 					data[di+3] = 0
 				else
-					data[di+0] = colormap.Colors[idx].Red
+					data[di+0] = colormap.Colors[idx].Blue
 					data[di+1] = colormap.Colors[idx].Green
-					data[di+2] = colormap.Colors[idx].Blue
+					data[di+2] = colormap.Colors[idx].Red
 					data[di+3] = 0xff
 				end
 				di = di+4
@@ -134,7 +134,7 @@ local function load(t)
 			local img = {
 				data = data,
 				size = size,
-				format = 'rgba8',
+				format = 'bgra8',
 				stride = stride,
 				w = w,
 				h = h,

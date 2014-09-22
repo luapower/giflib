@@ -16,24 +16,35 @@ local max_cutsize = 65536
 local cut_size = max_cutsize
 local frame_state = {} --{[filename] = {frame = <current_frame_no>, time = <next_frame_time>}
 
+player.continuous_rendering = true --for animated gifs
+
 function player:on_render(cr)
 
-	white_bg = self:mbutton{id = 'white_bg', x = 10, y = 10, w = 130, h = 24,
-						texts = {[true] = 'white bg', [false] = 'dark bg'}, values = {true, false}, selected = white_bg}
+	white_bg = self:mbutton{
+		id = 'white_bg', x = 10, y = 10, w = 130, h = 24,
+		texts = {[true] = 'white bg', [false] = 'dark bg'},
+		values = {true, false},
+		selected = white_bg}
+
 	self.theme = self.themes[white_bg and 'light' or 'dark']
 
-	source_type = self:mbutton{id = 'source_type', x = 150, y = 10, w = 290, h = 24,
-						values = {'path', 'cdata', 'string'},
-						selected = source_type}
+	source_type = self:mbutton{
+	id = 'source_type', x = 150, y = 10, w = 290, h = 24,
+	values = {'path', 'cdata', 'string'},
+	selected = source_type}
 
 	if source_type ~= 'path' then
-		cut_size = self:slider{id = 'cut_size', x = 700, y = 10, w = 190, h = 24,
-										i0 = 0, i1 = max_cutsize, i = cut_size, text = 'cut size'}
+		cut_size = self:slider{
+			id = 'cut_size', x = 700, y = 10, w = 190, h = 24,
+			i0 = 0, i1 = max_cutsize, i = cut_size,
+			text = 'cut size'}
 	end
 
-	opaque = self:mbutton{id = 'mode', x = 450, y = 10, w = 190, h = 24,
-						texts = {[true] = 'opaque', [false] = 'transparent'}, values = {true, false},
-						selected = opaque}
+	opaque = self:mbutton{
+		id = 'mode', x = 450, y = 10, w = 190, h = 24,
+		texts = {[true] = 'opaque', [false] = 'transparent'},
+		values = {true, false},
+		selected = opaque}
 
 	local cx, cy = 0, 40
 	local maxh = 0
