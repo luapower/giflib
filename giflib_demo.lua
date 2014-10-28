@@ -16,8 +16,6 @@ local max_cutsize = 65536
 local cut_size = max_cutsize
 local frame_state = {} --{[filename] = {frame = <current_frame_no>, time = <next_frame_time>}
 
-player.continuous_rendering = true --for animated gifs
-
 function player:on_render(cr)
 
 	self:checkerboard()
