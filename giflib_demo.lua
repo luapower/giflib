@@ -20,6 +20,8 @@ player.continuous_rendering = true --for animated gifs
 
 function player:on_render(cr)
 
+	self:checkerboard()
+
 	white_bg = self:mbutton{
 		id = 'white_bg', x = 10, y = 10, w = 130, h = 24,
 		texts = {[true] = 'white bg', [false] = 'dark bg'},

@@ -66,11 +66,17 @@ end
 
 local function load(t)
 	return glue.fcall(function(finally)
-		local opaque = type(t) == 'table' and t.opaque
+
+		--normalize args
+		if type(t) == 'string' then
+			t = {path = t}
+		end
+
+		local transparent = not t.opaque
 		--open source
 		local ft
-		if type(t) == 'string' or t.path then
-			ft = open(open_filename, t.path or t)
+		if t.path then
+			ft = open(open_filename, t.path)
 		elseif t.string then
 			local cb = ffi.cast('GifInputFunc', string_reader(t.string))
 			finally(function() cb:free() end)
@@ -105,7 +111,8 @@ local function load(t)
 				tcolor_idx = gcb.TransparentColor
 			end
 			local w, h = si.ImageDesc.Width, si.ImageDesc.Height
-			local colormap = si.ImageDesc.ColorMap ~= nil and si.ImageDesc.ColorMap or ft.SColorMap
+			local colormap = si.ImageDesc.ColorMap ~= nil
+				and si.ImageDesc.ColorMap or ft.SColorMap
 
 			--convert image to top-down 8bpc rgba.
 			local stride = w * 4
@@ -113,7 +120,6 @@ local function load(t)
 			local data = ffi.new('uint8_t[?]', size)
 			local di = 0
 			local assert = assert
-			local transparent = not opaque
 			for i=0, w * h-1 do
 				local idx = si.RasterBits[i]
 				assert(idx < colormap.ColorCount)
