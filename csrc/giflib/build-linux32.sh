@@ -1,1 +1,1 @@
-gcc -O2 -s -static-libgcc *.c -shared -o ../../bin/linux32/libgif.so -I.
+P=linux32 L="-s -static-libgcc" D=libgif.so A=libgif.a ./build.sh

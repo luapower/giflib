@@ -1,1 +1,2 @@
-gcc -arch x86_64 -O2 *.c -shared -install_name @loader_path/libgiflib.dylib -o ../../bin/osx64/libgif.dylib -I.
+P=osx64 C="-arch x86_64" L="-arch x86_64 -install_name @loader_path/libgif.dylib" \
+	D=libgif.dylib A=libgif.a ./build.sh
