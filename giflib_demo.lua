@@ -101,9 +101,6 @@ function player:on_render(cr)
 			maxh = math.max(maxh, gif.h)
 		end)
 
-		if not ok then
-			print(err)
-		end
 	end
 end
 
