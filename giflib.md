@@ -7,7 +7,7 @@ tagline: GIF reader
 
 Lightweight ffi binding of the antique [GIFLIB][giflib lib].
 
-## `giflib.load(path | t) -> gif`
+### `giflib.load(path | t) -> gif`
 
 Read and decode a GIF image.
 
