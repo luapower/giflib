@@ -1,5 +1,4 @@
 ---
-project: giflib
 tagline: GIF reader
 ---
 
