@@ -2,6 +2,8 @@
 --giflib ffi binding.
 --Written by Cosmin Apreutesei. Public Domain.
 
+if not ... then require'giflib_demo'; return end
+
 local ffi = require'ffi'
 local glue = require'glue'
 require'giflib_h'
@@ -154,8 +156,6 @@ local function load(t)
 		return gif
 	end)
 end
-
-if not ... then require'giflib_demo' end
 
 return {
 	load = load,
