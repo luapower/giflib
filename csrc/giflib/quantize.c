@@ -9,6 +9,8 @@
  and was removed in 4.2.  Then it turned out some client apps were
  actually using it, so it was restored in 5.0.
 
+SPDX-License-Identifier: MIT
+
 ******************************************************************************/
 
 #include <stdlib.h>
@@ -198,14 +200,14 @@ SubdivColorMap(NewColorMapType * NewColorSubdiv,
                unsigned int ColorMapSize,
                unsigned int *NewColorMapSize) {
 
-    int MaxSize;
-    unsigned int i, j, Index = 0, NumEntries, MinColor, MaxColor;
-    long Sum, Count;
+    unsigned int i, j, Index = 0;
     QuantizedColorType *QuantizedColor, **SortArray;
 
     while (ColorMapSize > *NewColorMapSize) {
         /* Find candidate for subdivision: */
-        MaxSize = -1;
+	long Sum, Count;
+        int MaxSize = -1;
+	unsigned int NumEntries, MinColor, MaxColor;
         for (i = 0; i < *NewColorMapSize; i++) {
             for (j = 0; j < 3; j++) {
                 if ((((int)NewColorSubdiv[i].RGBWidth[j]) > MaxSize) &&
@@ -234,6 +236,17 @@ SubdivColorMap(NewColorMapType * NewColorSubdiv,
              j++, QuantizedColor = QuantizedColor->Pnext)
             SortArray[j] = QuantizedColor;
 
+	/*
+	 * Because qsort isn't stable, this can produce differing 
+	 * results for the order of tuples depending on platform
+	 * details of how qsort() is implemented.
+	 *
+	 * We mitigate this problem by sorting on all three axes rather
+	 * than only the one specied by SortRGBAxis; that way the instability
+	 * can only become an issue if there are multiple color indices
+	 * referring to identical RGB tuples.  Older versions of this 
+	 * sorted on only the one axis.
+	 */
         qsort(SortArray, NewColorSubdiv[Index].NumEntries,
               sizeof(QuantizedColorType *), SortCmpRtn);
 
@@ -298,12 +311,22 @@ SubdivColorMap(NewColorMapType * NewColorSubdiv,
 /****************************************************************************
  Routine called by qsort to compare two entries.
 *****************************************************************************/
+
 static int
 SortCmpRtn(const void *Entry1,
            const void *Entry2) {
+	   QuantizedColorType *entry1 = (*((QuantizedColorType **) Entry1));
+	   QuantizedColorType *entry2 = (*((QuantizedColorType **) Entry2));
 
-    return (*((QuantizedColorType **) Entry1))->RGB[SortRGBAxis] -
-       (*((QuantizedColorType **) Entry2))->RGB[SortRGBAxis];
+	   /* sort on all axes of the color space! */
+	   int hash1 = entry1->RGB[SortRGBAxis] * 256 * 256
+	   			+ entry1->RGB[(SortRGBAxis+1) % 3] * 256
+				+ entry1->RGB[(SortRGBAxis+2) % 3];
+	   int hash2 = entry2->RGB[SortRGBAxis] * 256 * 256
+	   			+ entry2->RGB[(SortRGBAxis+1) % 3] * 256
+				+ entry2->RGB[(SortRGBAxis+2) % 3];
+
+    return hash1 - hash2;
 }
 
 /* end */

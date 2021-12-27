@@ -2,6 +2,8 @@
  
 gif_lib.h - service library for decoding and encoding GIF images
                                                                              
+SPDX-License-Identifier: MIT
+
 *****************************************************************************/
 
 #ifndef _GIF_LIB_H_
@@ -12,12 +14,13 @@ extern "C" {
 #endif /* __cplusplus */
 
 #define GIFLIB_MAJOR 5
-#define GIFLIB_MINOR 0
-#define GIFLIB_RELEASE 0
+#define GIFLIB_MINOR 2
+#define GIFLIB_RELEASE 1
 
 #define GIF_ERROR   0
 #define GIF_OK      1
 
+#include <stddef.h>
 #include <stdbool.h>
 
 #define GIF_STAMP "GIFVER"          /* First chars in file - GIF stamp.  */
@@ -57,7 +60,7 @@ typedef struct ExtensionBlock {
 #define COMMENT_EXT_FUNC_CODE     0xfe    /* comment */
 #define GRAPHICS_EXT_FUNC_CODE    0xf9    /* graphics control (GIF89) */
 #define PLAINTEXT_EXT_FUNC_CODE   0x01    /* plaintext */
-#define APPLICATION_EXT_FUNC_CODE 0xff    /* application block */
+#define APPLICATION_EXT_FUNC_CODE 0xff    /* application block (GIF89) */
 } ExtensionBlock;
 
 typedef struct SavedImage {
@@ -127,9 +130,10 @@ GifFileType *EGifOpenFileName(const char *GifFileName,
 GifFileType *EGifOpenFileHandle(const int GifFileHandle, int *Error);
 GifFileType *EGifOpen(void *userPtr, OutputFunc writeFunc, int *Error);
 int EGifSpew(GifFileType * GifFile);
-char *EGifGetGifVersion(GifFileType *GifFile); /* new in 5.x */
-int EGifCloseFile(GifFileType * GifFile);
+const char *EGifGetGifVersion(GifFileType *GifFile); /* new in 5.x */
+int EGifCloseFile(GifFileType *GifFile, int *ErrorCode);
 
+#define E_GIF_SUCCEEDED          0
 #define E_GIF_ERR_OPEN_FAILED    1    /* And EGif possible errors. */
 #define E_GIF_ERR_WRITE_FAILED   2
 #define E_GIF_ERR_HAS_SCRN_DSCR  3
@@ -152,6 +156,7 @@ int EGifPutImageDesc(GifFileType *GifFile,
                      const int GifWidth, const int GifHeight, 
 		     const bool GifInterlace,
                      const ColorMapObject *GifColorMap);
+void EGifSetGifVersion(GifFileType *GifFile, const bool gif89);
 int EGifPutLine(GifFileType *GifFile, GifPixelType *GifLine,
                 int GifLineLen);
 int EGifPutPixel(GifFileType *GifFile, const GifPixelType GifPixel);
@@ -177,8 +182,9 @@ GifFileType *DGifOpenFileName(const char *GifFileName, int *Error);
 GifFileType *DGifOpenFileHandle(int GifFileHandle, int *Error);
 int DGifSlurp(GifFileType * GifFile);
 GifFileType *DGifOpen(void *userPtr, InputFunc readFunc, int *Error);    /* new one (TVT) */
-int DGifCloseFile(GifFileType * GifFile);
+    int DGifCloseFile(GifFileType * GifFile, int *ErrorCode);
 
+#define D_GIF_SUCCEEDED          0
 #define D_GIF_ERR_OPEN_FAILED    101    /* And DGif possible errors. */
 #define D_GIF_ERR_READ_FAILED    102
 #define D_GIF_ERR_NOT_GIF_FILE   103
@@ -196,10 +202,10 @@ int DGifCloseFile(GifFileType * GifFile);
 /* These are legacy.  You probably do not want to call them directly */
 int DGifGetScreenDesc(GifFileType *GifFile);
 int DGifGetRecordType(GifFileType *GifFile, GifRecordType *GifType);
+int DGifGetImageHeader(GifFileType *GifFile);
 int DGifGetImageDesc(GifFileType *GifFile);
 int DGifGetLine(GifFileType *GifFile, GifPixelType *GifLine, int GifLineLen);
 int DGifGetPixel(GifFileType *GifFile, GifPixelType GifPixel);
-int DGifGetComment(GifFileType *GifFile, char *GifComment);
 int DGifGetExtension(GifFileType *GifFile, int *GifExtCode,
                      GifByteType **GifExtension);
 int DGifGetExtensionNext(GifFileType *GifFile, GifByteType **GifExtension);
@@ -207,21 +213,13 @@ int DGifGetCode(GifFileType *GifFile, int *GifCodeSize,
                 GifByteType **GifCodeBlock);
 int DGifGetCodeNext(GifFileType *GifFile, GifByteType **GifCodeBlock);
 int DGifGetLZCodes(GifFileType *GifFile, int *GifCode);
+const char *DGifGetGifVersion(GifFileType *GifFile);
 
-
-/******************************************************************************
- Color table quantization (deprecated)
-******************************************************************************/
-int GifQuantizeBuffer(unsigned int Width, unsigned int Height,
-                   int *ColorMapSize, GifByteType * RedInput,
-                   GifByteType * GreenInput, GifByteType * BlueInput,
-                   GifByteType * OutputBuffer,
-                   GifColorType * OutputColorMap);
 
 /******************************************************************************
  Error handling and reporting.
 ******************************************************************************/
-extern char *GifErrorString(int ErrorCode);     /* new in 2012 - ESR */
+extern const char *GifErrorString(int ErrorCode);     /* new in 2012 - ESR */
 
 /*****************************************************************************
  Everything below this point is new after version 1.2, supporting `slurp

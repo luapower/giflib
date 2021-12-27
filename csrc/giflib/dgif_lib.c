@@ -6,18 +6,21 @@ The functions here and in egif_lib.c are partitioned carefully so that
 if you only require one of read and write capability, only one of these
 two modules will be linked.  Preserve this property!
 
+SPDX-License-Identifier: MIT
+
 *****************************************************************************/
 
 #include <stdlib.h>
 #include <limits.h>
 #include <stdint.h>
 #include <fcntl.h>
-#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 
 #ifdef _WIN32
 #include <io.h>
+#else
+#include <unistd.h>
 #endif /* _WIN32 */
 
 #include "gif_lib.h"
@@ -27,10 +30,13 @@ two modules will be linked.  Preserve this property!
 #define UNSIGNED_LITTLE_ENDIAN(lo, hi)	((lo) | ((hi) << 8))
 
 /* avoid extra function call in case we use fread (TVT) */
-#define READ(_gif,_buf,_len)                                     \
-  (((GifFilePrivateType*)_gif->Private)->Read ?                   \
-    ((GifFilePrivateType*)_gif->Private)->Read(_gif,_buf,_len) : \
-    fread(_buf,1,_len,((GifFilePrivateType*)_gif->Private)->File))
+static int InternalRead(GifFileType *gif, GifByteType *buf, int len) {
+    //fprintf(stderr, "### Read: %d\n", len);
+    return 
+	(((GifFilePrivateType*)gif->Private)->Read ?
+	 ((GifFilePrivateType*)gif->Private)->Read(gif,buf,len) : 
+	 fread(buf,1,len,((GifFilePrivateType*)gif->Private)->File));
+}
 
 static int DGifGetWord(GifFileType *GifFile, GifWord *Word);
 static int DGifSetupDecompress(GifFileType *GifFile);
@@ -59,7 +65,6 @@ DGifOpenFileName(const char *FileName, int *Error)
     }
 
     GifFile = DGifOpenFileHandle(FileHandle, Error);
-    // cppcheck-suppress resourceLeak
     return GifFile;
 }
 
@@ -90,7 +95,7 @@ DGifOpenFileHandle(int FileHandle, int *Error)
     GifFile->SavedImages = NULL;
     GifFile->SColorMap = NULL;
 
-    Private = (GifFilePrivateType *)malloc(sizeof(GifFilePrivateType));
+    Private = (GifFilePrivateType *)calloc(1, sizeof(GifFilePrivateType));
     if (Private == NULL) {
         if (Error != NULL)
 	    *Error = D_GIF_ERR_NOT_ENOUGH_MEM;
@@ -98,6 +103,9 @@ DGifOpenFileHandle(int FileHandle, int *Error)
         free((char *)GifFile);
         return NULL;
     }
+
+    /*@i1@*/memset(Private, '\0', sizeof(GifFilePrivateType));
+
 #ifdef _WIN32
     _setmode(FileHandle, O_BINARY);    /* Make sure it is in binary mode. */
 #endif /* _WIN32 */
@@ -114,7 +122,8 @@ DGifOpenFileHandle(int FileHandle, int *Error)
     /*@=mustfreeonly@*/
 
     /* Let's see if this is a GIF file: */
-    if (READ(GifFile, (unsigned char *)Buf, GIF_STAMP_LEN) != GIF_STAMP_LEN) {
+    /* coverity[check_return] */
+    if (InternalRead(GifFile, (unsigned char *)Buf, GIF_STAMP_LEN) != GIF_STAMP_LEN) {
         if (Error != NULL)
 	    *Error = D_GIF_ERR_READ_FAILED;
         (void)fclose(f);
@@ -172,13 +181,14 @@ DGifOpen(void *userData, InputFunc readFunc, int *Error)
     GifFile->SavedImages = NULL;
     GifFile->SColorMap = NULL;
 
-    Private = (GifFilePrivateType *)malloc(sizeof(GifFilePrivateType));
+    Private = (GifFilePrivateType *)calloc(1, sizeof(GifFilePrivateType));
     if (!Private) {
         if (Error != NULL)
 	    *Error = D_GIF_ERR_NOT_ENOUGH_MEM;
         free((char *)GifFile);
         return NULL;
     }
+    /*@i1@*/memset(Private, '\0', sizeof(GifFilePrivateType));
 
     GifFile->Private = (void *)Private;
     Private->FileHandle = 0;
@@ -189,7 +199,8 @@ DGifOpen(void *userData, InputFunc readFunc, int *Error)
     GifFile->UserData = userData;    /* TVT */
 
     /* Lets see if this is a GIF file: */
-    if (READ(GifFile, (unsigned char *)Buf, GIF_STAMP_LEN) != GIF_STAMP_LEN) {
+    /* coverity[check_return] */
+    if (InternalRead(GifFile, (unsigned char *)Buf, GIF_STAMP_LEN) != GIF_STAMP_LEN) {
         if (Error != NULL)
 	    *Error = D_GIF_ERR_READ_FAILED;
         free((char *)Private);
@@ -210,6 +221,8 @@ DGifOpen(void *userData, InputFunc readFunc, int *Error)
     if (DGifGetScreenDesc(GifFile) == GIF_ERROR) {
         free((char *)Private);
         free((char *)GifFile);
+        if (Error != NULL)
+	    *Error = D_GIF_ERR_NO_SCRN_DSCR;
         return NULL;
     }
 
@@ -244,7 +257,7 @@ DGifGetScreenDesc(GifFileType *GifFile)
         DGifGetWord(GifFile, &GifFile->SHeight) == GIF_ERROR)
         return GIF_ERROR;
 
-    if (READ(GifFile, Buf, 3) != 3) {
+    if (InternalRead(GifFile, Buf, 3) != 3) {
         GifFile->Error = D_GIF_ERR_READ_FAILED;
 	GifFreeMapObject(GifFile->SColorMap);
 	GifFile->SColorMap = NULL;
@@ -267,7 +280,8 @@ DGifGetScreenDesc(GifFileType *GifFile)
         /* Get the global color map: */
 	GifFile->SColorMap->SortFlag = SortFlag;
         for (i = 0; i < GifFile->SColorMap->ColorCount; i++) {
-            if (READ(GifFile, Buf, 3) != 3) {
+	    /* coverity[check_return] */
+            if (InternalRead(GifFile, Buf, 3) != 3) {
                 GifFreeMapObject(GifFile->SColorMap);
                 GifFile->SColorMap = NULL;
                 GifFile->Error = D_GIF_ERR_READ_FAILED;
@@ -281,7 +295,23 @@ DGifGetScreenDesc(GifFileType *GifFile)
         GifFile->SColorMap = NULL;
     }
 
+    /*
+     * No check here for whether the background color is in range for the
+     * screen color map.  Possibly there should be.
+     */
+    
     return GIF_OK;
+}
+
+const char *
+DGifGetGifVersion(GifFileType *GifFile)
+{
+    GifFilePrivateType *Private = (GifFilePrivateType *) GifFile->Private;
+
+    if (Private->gif89)
+	return GIF89_STAMP;
+    else
+	return GIF87_STAMP;
 }
 
 /******************************************************************************
@@ -299,11 +329,13 @@ DGifGetRecordType(GifFileType *GifFile, GifRecordType* Type)
         return GIF_ERROR;
     }
 
-    if (READ(GifFile, &Buf, 1) != 1) {
+    /* coverity[check_return] */
+    if (InternalRead(GifFile, &Buf, 1) != 1) {
         GifFile->Error = D_GIF_ERR_READ_FAILED;
         return GIF_ERROR;
     }
 
+    //fprintf(stderr, "### DGifGetRecordType: %02x\n", Buf);
     switch (Buf) {
       case DESCRIPTOR_INTRODUCER:
           *Type = IMAGE_DESC_RECORD_TYPE;
@@ -323,17 +355,12 @@ DGifGetRecordType(GifFileType *GifFile, GifRecordType* Type)
     return GIF_OK;
 }
 
-/******************************************************************************
- This routine should be called before any attempt to read an image.
- Note it is assumed the Image desc. header has been read.
-******************************************************************************/
 int
-DGifGetImageDesc(GifFileType *GifFile)
+DGifGetImageHeader(GifFileType *GifFile)
 {
     unsigned int BitsPerPixel;
     GifByteType Buf[3];
     GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
-    SavedImage *sp;
 
     if (!IS_READABLE(Private)) {
         /* This file was NOT open for reading: */
@@ -346,10 +373,10 @@ DGifGetImageDesc(GifFileType *GifFile)
         DGifGetWord(GifFile, &GifFile->Image.Width) == GIF_ERROR ||
         DGifGetWord(GifFile, &GifFile->Image.Height) == GIF_ERROR)
         return GIF_ERROR;
-    if (READ(GifFile, Buf, 1) != 1) {
+    if (InternalRead(GifFile, Buf, 1) != 1) {
         GifFile->Error = D_GIF_ERR_READ_FAILED;
-	GifFreeMapObject(GifFile->Image.ColorMap);
-	GifFile->Image.ColorMap = NULL;
+        GifFreeMapObject(GifFile->Image.ColorMap);
+        GifFile->Image.ColorMap = NULL;
         return GIF_ERROR;
     }
     BitsPerPixel = (Buf[0] & 0x07) + 1;
@@ -362,7 +389,7 @@ DGifGetImageDesc(GifFileType *GifFile)
     }
     /* Does this image have local color map? */
     if (Buf[0] & 0x80) {
-	unsigned int i;
+        unsigned int i;
 
         GifFile->Image.ColorMap = GifMakeMapObject(1 << BitsPerPixel, NULL);
         if (GifFile->Image.ColorMap == NULL) {
@@ -372,7 +399,8 @@ DGifGetImageDesc(GifFileType *GifFile)
 
         /* Get the image local color map: */
         for (i = 0; i < GifFile->Image.ColorMap->ColorCount; i++) {
-            if (READ(GifFile, Buf, 3) != 3) {
+            /* coverity[check_return] */
+            if (InternalRead(GifFile, Buf, 3) != 3) {
                 GifFreeMapObject(GifFile->Image.ColorMap);
                 GifFile->Error = D_GIF_ERR_READ_FAILED;
                 GifFile->Image.ColorMap = NULL;
@@ -384,13 +412,42 @@ DGifGetImageDesc(GifFileType *GifFile)
         }
     }
 
+    Private->PixelCount = (long)GifFile->Image.Width *
+       (long)GifFile->Image.Height;
+
+    /* Reset decompress algorithm parameters. */
+    return DGifSetupDecompress(GifFile);
+}
+
+/******************************************************************************
+ This routine should be called before any attempt to read an image.
+ Note it is assumed the Image desc. header has been read.
+******************************************************************************/
+int
+DGifGetImageDesc(GifFileType *GifFile)
+{
+    GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
+    SavedImage *sp;
+
+    if (!IS_READABLE(Private)) {
+        /* This file was NOT open for reading: */
+        GifFile->Error = D_GIF_ERR_NOT_READABLE;
+        return GIF_ERROR;
+    }
+
+    if (DGifGetImageHeader(GifFile) == GIF_ERROR) {
+        return GIF_ERROR;
+    }
+
     if (GifFile->SavedImages) {
-        if ((GifFile->SavedImages = (SavedImage *)realloc(GifFile->SavedImages,
-                                      sizeof(SavedImage) *
-                                      (GifFile->ImageCount + 1))) == NULL) {
+        SavedImage* new_saved_images =
+            (SavedImage *)reallocarray(GifFile->SavedImages,
+                            (GifFile->ImageCount + 1), sizeof(SavedImage));
+        if (new_saved_images == NULL) {
             GifFile->Error = D_GIF_ERR_NOT_ENOUGH_MEM;
             return GIF_ERROR;
         }
+        GifFile->SavedImages = new_saved_images;
     } else {
         if ((GifFile->SavedImages =
              (SavedImage *) malloc(sizeof(SavedImage))) == NULL) {
@@ -415,12 +472,6 @@ DGifGetImageDesc(GifFileType *GifFile)
     sp->ExtensionBlocks = (ExtensionBlock *) NULL;
 
     GifFile->ImageCount++;
-
-    Private->PixelCount = (long)GifFile->Image.Width *
-       (long)GifFile->Image.Height;
-
-    /* Reset decompress algorithm parameters. */
-    (void)DGifSetupDecompress(GifFile);
 
     return GIF_OK;
 }
@@ -515,17 +566,20 @@ DGifGetExtension(GifFileType *GifFile, int *ExtCode, GifByteType **Extension)
     GifByteType Buf;
     GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
+    //fprintf(stderr, "### -> DGifGetExtension:\n");
     if (!IS_READABLE(Private)) {
         /* This file was NOT open for reading: */
         GifFile->Error = D_GIF_ERR_NOT_READABLE;
         return GIF_ERROR;
     }
 
-    if (READ(GifFile, &Buf, 1) != 1) {
+    /* coverity[check_return] */
+    if (InternalRead(GifFile, &Buf, 1) != 1) {
         GifFile->Error = D_GIF_ERR_READ_FAILED;
         return GIF_ERROR;
     }
     *ExtCode = Buf;
+    //fprintf(stderr, "### <- DGifGetExtension: %02x, about to call next\n", Buf);
 
     return DGifGetExtensionNext(GifFile, Extension);
 }
@@ -541,20 +595,24 @@ DGifGetExtensionNext(GifFileType *GifFile, GifByteType ** Extension)
     GifByteType Buf;
     GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
-    if (READ(GifFile, &Buf, 1) != 1) {
+    //fprintf(stderr, "### -> DGifGetExtensionNext\n");
+    if (InternalRead(GifFile, &Buf, 1) != 1) {
         GifFile->Error = D_GIF_ERR_READ_FAILED;
         return GIF_ERROR;
     }
+    //fprintf(stderr, "### DGifGetExtensionNext sees %d\n", Buf);
+
     if (Buf > 0) {
         *Extension = Private->Buf;    /* Use private unused buffer. */
         (*Extension)[0] = Buf;  /* Pascal strings notation (pos. 0 is len.). */
-	/* coverity[tainted_data] */
-        if (READ(GifFile, &((*Extension)[1]), Buf) != Buf) {
+	/* coverity[tainted_data,check_return] */
+        if (InternalRead(GifFile, &((*Extension)[1]), Buf) != Buf) {
             GifFile->Error = D_GIF_ERR_READ_FAILED;
             return GIF_ERROR;
         }
     } else
         *Extension = NULL;
+    //fprintf(stderr, "### <- DGifGetExtensionNext: %p\n", Extension);
 
     return GIF_OK;
 }
@@ -612,7 +670,7 @@ int DGifSavedExtensionToGCB(GifFileType *GifFile,
  This routine should be called last, to close the GIF file.
 ******************************************************************************/
 int
-DGifCloseFile(GifFileType *GifFile)
+DGifCloseFile(GifFileType *GifFile, int *ErrorCode)
 {
     GifFilePrivateType *Private;
 
@@ -640,25 +698,25 @@ DGifCloseFile(GifFileType *GifFile)
 
     if (!IS_READABLE(Private)) {
         /* This file was NOT open for reading: */
-        GifFile->Error = D_GIF_ERR_NOT_READABLE;
+	if (ErrorCode != NULL)
+	    *ErrorCode = D_GIF_ERR_NOT_READABLE;
+	free((char *)GifFile->Private);
+	free(GifFile);
         return GIF_ERROR;
     }
 
     if (Private->File && (fclose(Private->File) != 0)) {
-        GifFile->Error = D_GIF_ERR_CLOSE_FAILED;
+	if (ErrorCode != NULL)
+	    *ErrorCode = D_GIF_ERR_CLOSE_FAILED;
+	free((char *)GifFile->Private);
+	free(GifFile);
         return GIF_ERROR;
     }
 
     free((char *)GifFile->Private);
-
-    /* 
-     * Without the #ifndef, we get spurious warnings because Coverity mistakenly
-     * thinks the GIF structure is freed on an error return. 
-     */
-#ifndef __COVERITY__
     free(GifFile);
-#endif /* __COVERITY__ */
-
+    if (ErrorCode != NULL)
+	*ErrorCode = D_GIF_SUCCEEDED;
     return GIF_OK;
 }
 
@@ -670,7 +728,8 @@ DGifGetWord(GifFileType *GifFile, GifWord *Word)
 {
     unsigned char c[2];
 
-    if (READ(GifFile, c, 2) != 2) {
+    /* coverity[check_return] */
+    if (InternalRead(GifFile, c, 2) != 2) {
         GifFile->Error = D_GIF_ERR_READ_FAILED;
         return GIF_ERROR;
     }
@@ -714,7 +773,8 @@ DGifGetCodeNext(GifFileType *GifFile, GifByteType **CodeBlock)
     GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
     /* coverity[tainted_data_argument] */
-    if (READ(GifFile, &Buf, 1) != 1) {
+    /* coverity[check_return] */
+    if (InternalRead(GifFile, &Buf, 1) != 1) {
         GifFile->Error = D_GIF_ERR_READ_FAILED;
         return GIF_ERROR;
     }
@@ -724,7 +784,7 @@ DGifGetCodeNext(GifFileType *GifFile, GifByteType **CodeBlock)
         *CodeBlock = Private->Buf;    /* Use private unused buffer. */
         (*CodeBlock)[0] = Buf;  /* Pascal strings notation (pos. 0 is len.). */
 	/* coverity[tainted_data] */
-        if (READ(GifFile, &((*CodeBlock)[1]), Buf) != Buf) {
+        if (InternalRead(GifFile, &((*CodeBlock)[1]), Buf) != Buf) {
             GifFile->Error = D_GIF_ERR_READ_FAILED;
             return GIF_ERROR;
         }
@@ -748,8 +808,17 @@ DGifSetupDecompress(GifFileType *GifFile)
     GifPrefixType *Prefix;
     GifFilePrivateType *Private = (GifFilePrivateType *)GifFile->Private;
 
-    READ(GifFile, &CodeSize, 1);    /* Read Code size from file. */
+    /* coverity[check_return] */
+    if (InternalRead(GifFile, &CodeSize, 1) < 1) {    /* Read Code size from file. */
+	return GIF_ERROR;    /* Failed to read Code size. */
+    }
     BitsPerPixel = CodeSize;
+
+    /* this can only happen on a severely malformed GIF */
+    if (BitsPerPixel > 8) {
+	GifFile->Error = D_GIF_ERR_READ_FAILED;	/* somewhat bogus error code */
+	return GIF_ERROR;    /* Failed to read Code size. */
+    }
 
     Private->Buf[0] = 0;    /* Input Buffer empty. */
     Private->BitsPerPixel = BitsPerPixel;
@@ -834,19 +903,22 @@ DGifDecompressLine(GifFileType *GifFile, GifPixelType *Line, int LineLen)
                  * pixels on our stack. If we done, pop the stack in reverse
                  * (thats what stack is good for!) order to output.  */
                 if (Prefix[CrntCode] == NO_SUCH_CODE) {
+                    CrntPrefix = LastCode;
+
                     /* Only allowed if CrntCode is exactly the running code:
                      * In that case CrntCode = XXXCode, CrntCode or the
                      * prefix code is last code and the suffix char is
                      * exactly the prefix of last code! */
                     if (CrntCode == Private->RunningCode - 2) {
-                        CrntPrefix = LastCode;
                         Suffix[Private->RunningCode - 2] =
                            Stack[StackPtr++] = DGifGetPrefixChar(Prefix,
                                                                  LastCode,
                                                                  ClearCode);
                     } else {
-                        GifFile->Error = D_GIF_ERR_IMAGE_DEFECT;
-                        return GIF_ERROR;
+                        Suffix[Private->RunningCode - 2] =
+                           Stack[StackPtr++] = DGifGetPrefixChar(Prefix,
+                                                                 CrntCode,
+                                                                 ClearCode);
                     }
                 } else
                     CrntPrefix = CrntCode;
@@ -871,7 +943,7 @@ DGifDecompressLine(GifFileType *GifFile, GifPixelType *Line, int LineLen)
                 while (StackPtr != 0 && i < LineLen)
                     Line[i++] = Stack[--StackPtr];
             }
-            if (LastCode != NO_SUCH_CODE) {
+            if (LastCode != NO_SUCH_CODE && Private->RunningCode - 2 < (LZ_MAX_CODE+1) && Prefix[Private->RunningCode - 2] == NO_SUCH_CODE) {
                 Prefix[Private->RunningCode - 2] = LastCode;
 
                 if (CrntCode == Private->RunningCode - 2) {
@@ -1018,7 +1090,8 @@ DGifBufferedInput(GifFileType *GifFile, GifByteType *Buf, GifByteType *NextByte)
 {
     if (Buf[0] == 0) {
         /* Needs to read the next buffer - this one is empty: */
-        if (READ(GifFile, Buf, 1) != 1) {
+	/* coverity[check_return] */
+        if (InternalRead(GifFile, Buf, 1) != 1) {
             GifFile->Error = D_GIF_ERR_READ_FAILED;
             return GIF_ERROR;
         }
@@ -1030,15 +1103,7 @@ DGifBufferedInput(GifFileType *GifFile, GifByteType *Buf, GifByteType *NextByte)
             GifFile->Error = D_GIF_ERR_IMAGE_DEFECT;
             return GIF_ERROR;
         }
-        /* There shouldn't be any empty data blocks here as the LZW spec
-         * says the LZW termination code should come first.  Therefore we
-         * shouldn't be inside this routine at that point.
-         */
-        if (Buf[0] == 0) {
-            GifFile->Error = D_GIF_ERR_IMAGE_DEFECT;
-            return GIF_ERROR;
-        }
-        if (READ(GifFile, &Buf[1], Buf[0]) != Buf[0]) {
+        if (InternalRead(GifFile, &Buf[1], Buf[0]) != Buf[0]) {
             GifFile->Error = D_GIF_ERR_READ_FAILED;
             return GIF_ERROR;
         }
@@ -1081,7 +1146,7 @@ DGifSlurp(GifFileType *GifFile)
 
               sp = &GifFile->SavedImages[GifFile->ImageCount - 1];
               /* Allocate memory for the image */
-              if (sp->ImageDesc.Width < 0 && sp->ImageDesc.Height < 0 &&
+              if (sp->ImageDesc.Width <= 0 || sp->ImageDesc.Height <= 0 ||
                       sp->ImageDesc.Width > (INT_MAX / sp->ImageDesc.Height)) {
                   return GIF_ERROR;
               }
@@ -1090,7 +1155,7 @@ DGifSlurp(GifFileType *GifFile)
               if (ImageSize > (SIZE_MAX / sizeof(GifPixelType))) {
                   return GIF_ERROR;
               }
-              sp->RasterBits = (unsigned char *)malloc(ImageSize *
+              sp->RasterBits = (unsigned char *)reallocarray(NULL, ImageSize,
                       sizeof(GifPixelType));
 
               if (sp->RasterBits == NULL) {
@@ -1134,14 +1199,18 @@ DGifSlurp(GifFileType *GifFile)
               if (DGifGetExtension(GifFile,&ExtFunction,&ExtData) == GIF_ERROR)
                   return (GIF_ERROR);
 	      /* Create an extension block with our data */
-	      if (GifAddExtensionBlock(&GifFile->ExtensionBlockCount,
-				       &GifFile->ExtensionBlocks, 
-				       ExtFunction, ExtData[0], &ExtData[1])
-		  == GIF_ERROR)
-		  return (GIF_ERROR);
-              while (ExtData != NULL) {
+              if (ExtData != NULL) {
+		  if (GifAddExtensionBlock(&GifFile->ExtensionBlockCount,
+					   &GifFile->ExtensionBlocks, 
+					   ExtFunction, ExtData[0], &ExtData[1])
+		      == GIF_ERROR)
+		      return (GIF_ERROR);
+	      }
+              for (;;) {
                   if (DGifGetExtensionNext(GifFile, &ExtData) == GIF_ERROR)
                       return (GIF_ERROR);
+		  if (ExtData == NULL)
+		      break;
                   /* Continue the extension block */
 		  if (ExtData != NULL)
 		      if (GifAddExtensionBlock(&GifFile->ExtensionBlockCount,
@@ -1159,6 +1228,12 @@ DGifSlurp(GifFileType *GifFile)
               break;
         }
     } while (RecordType != TERMINATE_RECORD_TYPE);
+
+    /* Sanity check for corrupted file */
+    if (GifFile->ImageCount == 0) {
+	GifFile->Error = D_GIF_ERR_NO_IMAG_DSCR;
+	return(GIF_ERROR);
+    }
 
     return (GIF_OK);
 }

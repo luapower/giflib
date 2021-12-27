@@ -9,107 +9,62 @@ local glue = require'glue'
 require'giflib_h'
 local C = ffi.load'gif'
 
-local function ptr(p) --convert NULL to nil
-	return p ~= nil and p or nil
-end
+local function open(opt)
 
-local function string_reader(data)
-	local i = 1
-	return function(_, buf, sz)
-		if sz < 1 or #data < i then error'eof' end
-		local s = data:sub(i, i+sz-1)
-		ffi.copy(buf, s, #s)
-		i = i + #s
-		return #s
+	local data = ffi.cast('uint8_t*', opt.data)
+	local size = opt.size or #opt.data
+
+	local cb, ft
+	local function free()
+		local _ = opt.data --pin it so it doesn't get collected (if string)
+		if cb then cb:free(); cb = nil end
+		if ft then C.DGifCloseFile(ft); ft = nil end
 	end
-end
 
-local function cdata_reader(data, size)
-	data = ffi.cast('unsigned char*', data)
-	return function(_, buf, sz)
-		if sz < 1 or size < 1 then error'eof' end
+	local function read(_, buf, sz)
+		assert(sz > 0)
+		if size == 0 then
+			return 0
+		end
 		sz = math.min(size, sz)
 		ffi.copy(buf, data, sz)
 		data = data + sz
 		size = size - sz
 		return sz
 	end
-end
+	--[[local]] cb = ffi.cast('GifInputFunc', read)
 
-local function open_callback(cb, err)
-	return C.DGifOpen(nil, cb, err)
-end
-
-local function open_fileno(fileno, err)
-	return C.DGifOpenFileHandle(fileno, err)
-end
-
-local function open_filename(filename, err)
-	return C.DGifOpenFileName(filename, err)
-end
-
-local function open(opener, arg)
 	local err = ffi.new'int[1]'
-	local ft = ptr(opener(arg, err))
-	if not ft then error(ffi.string(C.GifErrorString(err[0]))) end
-	return ft
-end
-
-local function checknz(ft, res)
-	if res ~= 0 then return end
-	error(ffi.string(C.GifErrorString(ft.Error)))
-end
-
-local function close(ft)
-	if C.DGifCloseFile(ft) == 0 then
-		ffi.C.free(ft)
+	--[[local]] ft = C.DGifOpen(nil, cb, err)
+	if ft == nil then
+		free()
+		return nil, ffi.string(C.GifErrorString(err[0]))
 	end
-end
 
-local function load(t)
-	return glue.fcall(function(finally)
+	local gif = {free = free}
+	gif.w = ft.SWidth
+	gif.h = ft.SHeight
+	local c = ft.SColorMap.Colors[ft.SBackGroundColor]
+	gif.bg_color = {c.Red/255, c.Green/255, c.Blue/255}
+	gif.image_count = ft.ImageCount
 
-		--normalize args
-		if type(t) == 'string' then
-			t = {path = t}
+	function gif:load(opt)
+		local transparent = not opt.opaque
+
+		local ok = C.DGifSlurp(ft) ~= 0
+		if not ok then
+			return nil, ffi.string(C.GifErrorString(ft.Error))
 		end
 
-		local transparent = not t.opaque
-		--open source
-		local ft
-		if t.path then
-			ft = open(open_filename, t.path)
-		elseif t.string then
-			local cb = ffi.cast('GifInputFunc', string_reader(t.string))
-			finally(function() cb:free() end)
-			ft = open(open_callback, cb)
-		elseif t.cdata then
-			local cb = ffi.cast('GifInputFunc', cdata_reader(t.cdata, t.size))
-			finally(function() cb:free() end)
-			ft = open(open_callback, cb)
-		elseif t.fileno then
-			ft = open(open_fileno, t.fileno)
-		else
-			error'source missing'
-		end
-		finally(function() close(ft) end)
-
-		--decode gif
-		checknz(ft, C.DGifSlurp(ft))
-
-		--collect data
-		local gif = {frames = {}}
-		gif.w, gif.h = ft.SWidth, ft.SHeight
-		local c = ft.SColorMap.Colors[ft.SBackGroundColor]
-		gif.bg_color = {c.Red/255, c.Green/255, c.Blue/255}
+		local frames = {}
 		local gcb = ffi.new'GraphicsControlBlock'
-		for i=0,ft.ImageCount-1 do
+		for i = 0, ft.ImageCount-1 do
 			local si = ft.SavedImages[i]
 
-			--find delay and transparent color index, if any
-			local delay_ms, tcolor_idx
+			--find delay and transparent color index, if any.
+			local delay, tcolor_idx
 			if C.DGifSavedExtensionToGCB(ft, i, gcb) == 1 then
-				delay_ms = gcb.DelayTime * 10 --make it milliseconds
+				delay = gcb.DelayTime / 100 --make it in seconds
 				tcolor_idx = gcb.TransparentColor
 			end
 			local w, h = si.ImageDesc.Width, si.ImageDesc.Height
@@ -139,7 +94,7 @@ local function load(t)
 				di = di+4
 			end
 
-			local img = {
+			frames[i+1] = {
 				data = data,
 				size = size,
 				format = 'bgra8',
@@ -148,16 +103,17 @@ local function load(t)
 				h = h,
 				x = si.ImageDesc.Left,
 				y = si.ImageDesc.Top,
-				delay_ms = delay_ms,
+				delay = delay,
 			}
-
-			gif.frames[#gif.frames + 1] = img
 		end
-		return gif
-	end)
+
+		return frames
+	end
+
+	return gif
 end
 
 return {
-	load = load,
+	open = open,
 	C = C,
 }
