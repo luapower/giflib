@@ -11,13 +11,17 @@ local C = ffi.load'gif'
 
 local function open(opt)
 
+	if type(opt) == 'function' then
+		opt = {read = opt}
+	end
+	local read = assert(opt.read, 'read expected')
+
 	local read_cb, ft
+
 	local function free()
 		if read_cb then read_cb:free(); read_cb = nil end
 		if ft then C.DGifCloseFile(ft); ft = nil end
 	end
-
-	local read = assert(opt.read, 'read expected')
 
 	local function gif_read(_, buf, len)
 		::again::
