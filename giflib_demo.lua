@@ -12,7 +12,7 @@ local frame_state = {} --{[filename] = {frame = <current_frame_no>, time = <next
 
 function testui:repaint()
 
-	--self:checkerboard()
+	self:checkerboard()
 
 	self:pushgroup'down'
 
@@ -34,12 +34,10 @@ function testui:repaint()
 	--for filename in fs.dir'media/gif' do
 		local path = 'media/gif/'..filename
 
-		local t = {}
-
 		local f = assert(fs.open(path))
 		local bufread = f:buffered_read()
 		local left = cut_size
-		function t.read(buf, sz)
+		local function read(buf, sz)
 			if left == 0 then return 0 end
 			local readsz, err = bufread(buf, math.min(left, sz))
 			if not readsz then return nil, err end
@@ -47,7 +45,7 @@ function testui:repaint()
 			return readsz
 		end
 
-		local gif, err = giflib.open(t)
+		local gif, err = giflib.open{read = read}
 		if not gif then
 			f:close()
 			goto skip
