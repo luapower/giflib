@@ -10,11 +10,17 @@ Lightweight ffi binding of the antique [GIFLIB][giflib lib].
 
 ### `giflib.open(opt) -> gif`
 
-Read and decode a GIF image.
+Open a GIF image and read its header. `opt` is a table containing at least
+the read function and possibly other options.
 
-* table `opt` can have:
-  * `data:` read data from a string or cdata buffer.
-  * `size`: data size in bytes.
+The read function has the form `read(buf, size) -> readsize`, it can yield
+and it can signal I/O errors by returning `nil, err`. It will only be asked
+to read a positive number of bytes and it can return less bytes than asked,
+including zero which signals EOF.
+
+The `opt` table has the fields:
+
+* `read`: the read function (required).
 
 The returned `gif` object is a table with the fields:
 

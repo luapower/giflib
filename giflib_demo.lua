@@ -1,12 +1,10 @@
 
 local giflib = require'giflib'
-local glue = require'glue'
 local ffi = require'ffi'
 local fs = require'fs'
 local testui = require'testui'
 
 local white_bg = false
-local source_type = 'cdata'
 local max_cutsize = 65536
 local cut_size = max_cutsize
 local opaque = 'transparent'
@@ -21,9 +19,8 @@ function testui:repaint()
 	self:pushgroup'right'
 	self.min_w = 100
 
-	source_type = self:choose('source_type', {'cdata', 'string'}, source_type) or source_type
-	cut_size    = self:slide('cut_size', 'cut size', cut_size, 0, max_cutsize, 1) or cut_size
-	opaque      = self:choose('mode', {'opaque', 'transparent'}, opaque) or opaque
+	cut_size = self:slide('cut_size', 'cut size', cut_size, 0, max_cutsize, 1) or cut_size
+	opaque   = self:choose('mode', {'opaque', 'transparent'}, opaque) or opaque
 
 	self:nextgroup()
 	self.y = self.y + 10
@@ -38,25 +35,28 @@ function testui:repaint()
 		local path = 'media/gif/'..filename
 
 		local t = {}
-		local s = assert(glue.readfile(path)):sub(1, cut_size)
-		if source_type == 'cdata' then
-			local data = ffi.new('uint8_t[?]', #s + 1, s)
-			t.data = data
-			t.size = #s
-		elseif source_type == 'string' then
-			t.data = s
-		else
-			assert(false)
+
+		local f = assert(fs.open(path))
+		local bufread = f:buffered_read()
+		local left = cut_size
+		function t.read(buf, sz)
+			if left == 0 then return 0 end
+			local readsz, err = bufread(buf, math.min(left, sz))
+			if not readsz then return nil, err end
+			left = left - readsz
+			return readsz
 		end
 
 		local gif, err = giflib.open(t)
 		if not gif then
+			f:close()
 			goto skip
 		end
 
 		local frames, err = gif:load{opaque = opaque == 'opaque'}
 		if not frames then
 			gif:free()
+			f:close()
 			goto skip
 		end
 
@@ -85,6 +85,7 @@ function testui:repaint()
 		self:image(image)
 
 		gif:free()
+		f:close()
 
 		::skip::
 	end

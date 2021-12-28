@@ -11,31 +11,29 @@ local C = ffi.load'gif'
 
 local function open(opt)
 
-	local data = ffi.cast('uint8_t*', opt.data)
-	local size = opt.size or #opt.data
-
-	local cb, ft
+	local read_cb, ft
 	local function free()
-		local _ = opt.data --pin it so it doesn't get collected (if string)
-		if cb then cb:free(); cb = nil end
+		if read_cb then read_cb:free(); read_cb = nil end
 		if ft then C.DGifCloseFile(ft); ft = nil end
 	end
 
-	local function read(_, buf, sz)
-		assert(sz > 0)
-		if size == 0 then
-			return 0
+	local read = assert(opt.read, 'read expected')
+
+	local function gif_read(_, buf, len)
+		::again::
+		local sz = read(buf, len)
+		if not sz or sz == 0 then return 0 end
+		if sz < len then --partial read
+			len = len - sz
+			buf = buf + sz
+			goto again
 		end
-		sz = math.min(size, sz)
-		ffi.copy(buf, data, sz)
-		data = data + sz
-		size = size - sz
 		return sz
 	end
-	--[[local]] cb = ffi.cast('GifInputFunc', read)
+	--[[local]] read_cb = ffi.cast('GifInputFunc', gif_read)
 
 	local err = ffi.new'int[1]'
-	--[[local]] ft = C.DGifOpen(nil, cb, err)
+	--[[local]] ft = C.DGifOpen(nil, read_cb, err)
 	if ft == nil then
 		free()
 		return nil, ffi.string(C.GifErrorString(err[0]))
