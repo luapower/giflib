@@ -5,9 +5,14 @@
 if not ... then require'giflib_demo'; return end
 
 local ffi = require'ffi'
-local glue = require'glue'
+local bit = require'bit'
 require'giflib_h'
 local C = ffi.load'gif'
+
+--given a row stride, return the next larger stride that is a multiple of 4.
+local function pad_stride(stride)
+	return bit.band(stride + 3, bit.bnot(3))
+end
 
 local function open(opt)
 
@@ -64,10 +69,10 @@ local function open(opt)
 			local si = ft.SavedImages[i]
 
 			--find delay and transparent color index, if any.
-			local delay, tcolor_idx
+			local delay, tcolor_i
 			if C.DGifSavedExtensionToGCB(ft, i, gcb) == 1 then
 				delay = gcb.DelayTime / 100 --make it in seconds
-				tcolor_idx = gcb.TransparentColor
+				tcolor_i = gcb.TransparentColor
 			end
 			local w, h = si.ImageDesc.Width, si.ImageDesc.Height
 			local colormap = si.ImageDesc.ColorMap ~= nil
@@ -75,25 +80,30 @@ local function open(opt)
 
 			--convert image to top-down 8bpc rgba.
 			local stride = w * 4
+			if opt and opt.accept and opt.accept.stride_aligned then
+				stride = pad_stride(stride)
+			end
+			local bottom_up = opt and opt.accept and opt.accept.bottom_up
 			local size = stride * h
 			local data = ffi.new('uint8_t[?]', size)
-			local di = 0
 			local assert = assert
-			for i=0, w * h-1 do
-				local idx = si.RasterBits[i]
-				assert(idx < colormap.ColorCount)
-				if idx == tcolor_idx and transparent then
-					data[di+0] = 0
-					data[di+1] = 0
-					data[di+2] = 0
-					data[di+3] = 0
-				else
-					data[di+0] = colormap.Colors[idx].Blue
-					data[di+1] = colormap.Colors[idx].Green
-					data[di+2] = colormap.Colors[idx].Red
-					data[di+3] = 0xff
+			for y = 0, h-1 do
+				for x = 0, w-1 do
+					local i = si.RasterBits[y * w + x]
+					local di = (bottom_up and h - y - 1 or y) * stride + x * 4
+					assert(i < colormap.ColorCount)
+					if i == tcolor_i and transparent then
+						data[di+0] = 0
+						data[di+1] = 0
+						data[di+2] = 0
+						data[di+3] = 0
+					else
+						data[di+0] = colormap.Colors[i].Blue
+						data[di+1] = colormap.Colors[i].Green
+						data[di+2] = colormap.Colors[i].Red
+						data[di+3] = 0xff
+					end
 				end
-				di = di+4
 			end
 
 			frames[i+1] = {
@@ -101,6 +111,7 @@ local function open(opt)
 				size = size,
 				format = 'bgra8',
 				stride = stride,
+				bottom_up = bottom_up,
 				w = w,
 				h = h,
 				x = si.ImageDesc.Left,

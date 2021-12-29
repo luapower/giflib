@@ -7,7 +7,9 @@ local testui = require'testui'
 local white_bg = false
 local max_cutsize = 65536
 local cut_size = max_cutsize
-local opaque = 'transparent'
+local opaque = false
+local bottom_up = false
+local stride_aligned = false
 local frame_state = {} --{[filename] = {frame = <current_frame_no>, time = <next_frame_time>}
 
 function testui:repaint()
@@ -19,8 +21,11 @@ function testui:repaint()
 	self:pushgroup'right'
 	self.min_w = 100
 
-	cut_size = self:slide('cut_size', 'cut size', cut_size, 0, max_cutsize, 1) or cut_size
-	opaque   = self:choose('mode', {'opaque', 'transparent'}, opaque) or opaque
+	local _
+	_,cut_size  = self:slide('cut_size', 'cut size', cut_size, 0, max_cutsize, 1)
+	_,opaque    = self:button('opaque', opaque)
+	_,bottom_up = self:button('bottom_up', bottom_up)
+	_,stride_aligned = self:button('stride_aligned', stride_aligned)
 
 	self:nextgroup()
 	self.y = self.y + 10
@@ -51,7 +56,8 @@ function testui:repaint()
 			goto skip
 		end
 
-		local frames, err = gif:load{opaque = opaque == 'opaque'}
+		local frames, err = gif:load{opaque = opaque,
+			accept = {bottom_up = bottom_up, stride_aligned = stride_aligned}}
 		if not frames then
 			gif:free()
 			f:close()
