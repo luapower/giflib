@@ -31,9 +31,10 @@ The returned `gif` object is a table with the fields:
 
 The `opt` table has the fields:
 
+* `accept`: a table with the fields:
+  * `bottom_up`: bottom-up bitmap (false).
+  * `stride_aligned`: align stride to 4 bytes (false).
 * `opaque`: prevent converting the GIF transparent color to transparent black (false).
-* `bottom_up`: bottom-up bitmap (false).
-* `stride_aligned`: align stride to 4 bytes (false).
 
 Returns an array of frames where each frame is an image object with the fields:
 

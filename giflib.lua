@@ -14,6 +14,16 @@ local function pad_stride(stride)
 	return bit.band(stride + 3, bit.bnot(3))
 end
 
+local function DGifOpen(...)
+	return C.DGifOpen(...)
+end
+jit.off(DGifOpen) --calls back into Lua through a ffi call.
+
+local function DGifSlurp(ft)
+	return C.DGifSlurp(ft)
+end
+jit.off(DGifSlurp) --calls back into Lua through a ffi call.
+
 local function open(opt)
 
 	if type(opt) == 'function' then
@@ -41,11 +51,7 @@ local function open(opt)
 	end
 	--[[local]] read_cb = ffi.cast('GifInputFunc', gif_read)
 	local err = ffi.new'int[1]'
-	local function open()
-		return C.DGifOpen(nil, read_cb, err)
-	end
-	jit.off(open) --calls back into Lua through a ffi call.
-	--[[local]] ft = open()
+	--[[local]] ft = DGifOpen(nil, read_cb, err)
 	if ft == nil then
 		free()
 		return nil, ffi.string(C.GifErrorString(err[0]))
@@ -58,15 +64,9 @@ local function open(opt)
 	gif.bg_color = {c.Red/255, c.Green/255, c.Blue/255}
 	gif.image_count = ft.ImageCount
 
-	local function slurp()
-		return C.DGifSlurp(ft) ~= 0
-	end
-	jit.off(slurp) --calls back into Lua through a ffi call.
-
 	function gif:load(opt)
-		local transparent = not opt.opaque
 
-		if not slurp() then
+		if DGifSlurp(ft) == 0 then
 			return nil, ffi.string(C.GifErrorString(ft.Error))
 		end
 
@@ -94,6 +94,7 @@ local function open(opt)
 			local size = stride * h
 			local data = ffi.new('uint8_t[?]', size)
 			local assert = assert
+			local transparent = opt and not opt.opaque
 			for y = 0, h-1 do
 				for x = 0, w-1 do
 					local i = si.RasterBits[y * w + x]
