@@ -13,7 +13,7 @@ Lightweight ffi binding of the antique [GIFLIB][giflib lib].
 Open a GIF image and read its header. `opt` is a table containing at least
 the read function and possibly other options.
 
-The read function has the form `read(buf, size) -> readsize`, **it cannot yield**
+The read function has the form `read(buf, len) -> readlen`, **it cannot yield**
 and it can signal I/O errors by returning `nil, err`. It will only be asked
 to read a positive number of bytes and it can return less bytes than asked,
 including zero which signals EOF.
