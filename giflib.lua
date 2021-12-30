@@ -40,9 +40,12 @@ local function open(opt)
 		return sz
 	end
 	--[[local]] read_cb = ffi.cast('GifInputFunc', gif_read)
-
 	local err = ffi.new'int[1]'
-	--[[local]] ft = C.DGifOpen(nil, read_cb, err)
+	local function open()
+		return C.DGifOpen(nil, read_cb, err)
+	end
+	jit.off(open) --calls back into Lua through a ffi call.
+	--[[local]] ft = open()
 	if ft == nil then
 		free()
 		return nil, ffi.string(C.GifErrorString(err[0]))
@@ -55,11 +58,15 @@ local function open(opt)
 	gif.bg_color = {c.Red/255, c.Green/255, c.Blue/255}
 	gif.image_count = ft.ImageCount
 
+	local function slurp()
+		return C.DGifSlurp(ft) ~= 0
+	end
+	jit.off(slurp) --calls back into Lua through a ffi call.
+
 	function gif:load(opt)
 		local transparent = not opt.opaque
 
-		local ok = C.DGifSlurp(ft) ~= 0
-		if not ok then
+		if not slurp() then
 			return nil, ffi.string(C.GifErrorString(ft.Error))
 		end
 
