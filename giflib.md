@@ -8,7 +8,15 @@ Lightweight ffi binding of the antique [GIFLIB][giflib lib].
 
 [giflib lib]: http://sourceforge.net/projects/giflib/
 
-### `giflib.open(opt) -> gif`
+## API
+
+------------------------------------ -----------------------------------------
+`giflib.open(opt | read) -> gif`     open a GIF image for decoding
+`gif:load([opt]) -> bmp`             load the image into a bitmap
+`gif:free()`                         free the image
+------------------------------------ -----------------------------------------
+
+### `giflib.open(opt | read) -> gif`
 
 Open a GIF image and read its header. `opt` is a table containing at least
 the read function and possibly other options.
@@ -22,7 +30,8 @@ The `opt` table has the fields:
 
 * `read`: the read function (required).
 
-The returned `gif` object is a table with the fields:
+The returned `gif` object contains information about the file and can be used
+to load/decode the actual image. Its fields are:
 
 * `w`, `h`: the GIF image dimensions.
 * `bg_color: `{r, g, b}` where each color component is in `0..1` range.
