@@ -30,13 +30,7 @@ function testui:repaint()
 	self:nextgroup()
 	self.y = self.y + 10
 
-	local files = {}
 	for filename in fs.dir'media/gif' do
-		files[#files+1] = filename
-	end
-
-	for _,filename in ipairs(files) do
-	--for filename in fs.dir'media/gif' do
 		local path = 'media/gif/'..filename
 
 		local f = assert(fs.open(path))
