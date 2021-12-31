@@ -28,6 +28,7 @@ The returned `gif` object is a table with the fields:
 * `bg_color: `{r, g, b}` where each color component is in `0..1` range.
 
 __TIP__: Use `tcp:recvall_read()` from [sock] to read from a TCP socket.
+
 __TIP__: Use `f:buffered_read()` from [fs] to read from a file.
 
 ### `gif:load([opt]) -> frames`
